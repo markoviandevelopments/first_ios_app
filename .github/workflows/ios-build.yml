@@ -17,9 +17,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: List Xcode versions
-      run: ls -l /Applications | grep Xcode
-
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
@@ -29,18 +26,28 @@ jobs:
     - name: Install dependencies
       run: flutter pub get
 
-    - name: List available iOS runtimes
-      run: xcrun simctl list runtimes
+    - name: Decode certificate
+      run: |
+        echo "${{ secrets.IOS_CERTIFICATE }}" | base64 --decode > certificate.p12
+        security create-keychain -p pwd build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p pwd build.keychain
+        security import certificate.p12 -k build.keychain -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd build.keychain
 
-    - name: Build iOS with xcodebuild
+    - name: Decode provisioning profile
+      run: |
+        echo "${{ secrets.PROVISIONING_PROFILE }}" | base64 --decode > profile.mobileprovision
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+    - name: Build IPA
       run: |
         cd ios
-        xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
-      env:
-        DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        flutter build ipa --release --export-method ad-hoc --bundle-version 1.0.0 --bundle-short-version-string 1.0
 
     - name: Archive artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ios-build
-        path: ios/build/Release-iphoneos/Runner.app
+        name: first-ios-app-ipa
+        path: build/ios/ipa/*.ipa
