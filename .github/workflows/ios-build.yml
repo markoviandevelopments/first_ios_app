@@ -20,7 +20,7 @@ jobs:
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.24.1'  # Updated to latest stable as of 2025; adjust if needed
+        flutter-version: '3.24.1'
 
     - name: Install dependencies
       run: flutter pub get
@@ -29,29 +29,26 @@ jobs:
       run: |
         echo "${{ secrets.IOS_CERTIFICATE }}" | base64 --decode > certificate.p12
         ls -l certificate.p12  # Diagnostic: Check file size
+        file certificate.p12  # Diagnostic: Check file type
+        security create-keychain -p pwd build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p pwd build.keychain
+        security import certificate.p12 -k build.keychain -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign || { echo "Certificate import failed"; cat certificate.p12; exit 1; }
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd build.keychain
+        security find-identity -v -p codesigning  # Diagnostic: Verify imported identity
 
     - name: Decode provisioning profile
       run: |
         echo "${{ secrets.PROVISIONING_PROFILE }}" | base64 --decode > profile.mobileprovision
+        ls -l profile.mobileprovision  # Diagnostic: Check file size
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
         cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-        ls -l profile.mobileprovision  # Diagnostic: Check file size
-
-    - name: Setup keychain
-      run: |
-        security create-keychain -p pwd build.keychain
-        security default-keychain -s build.keychain
-        security unlock-keychain -p pwd build.keychain
-
-    - name: Import certificate
-      run: |
-        security import certificate.p12 -k build.keychain -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign || echo "Import failed - check secret values"
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd build.keychain
-        security find-identity -v -p codesigning  # Diagnostic: List identities to verify import
 
     - name: Build IPA
       run: |
+        cd ios
         flutter build ipa --release --export-method ad-hoc --bundle-version 1.0.0 --bundle-short-version-string 1.0 --provisioning-profile-uuid 0b68e1cd-eff0-4306-a2c4-878008e53bcb
+        ls -l build/ios/ipa/  # Diagnostic: Check .ipa output
 
     - name: Archive artifact
       uses: actions/upload-artifact@v4
