@@ -44,7 +44,7 @@ jobs:
     - name: Build IPA
       run: |
         cd ios
-        flutter build ipa --release --export-method ad-hoc --bundle-version 1.0.0 --bundle-short-version-string 1.0
+        flutter build ipa --release --export-method ad-hoc --bundle-version 1.0.0 --bundle-short-version-string 1.0 --provisioning-profile-uuid 0b68e1cd-eff0-4306-a2c4-878008e53bcb
 
     - name: Archive artifact
       uses: actions/upload-artifact@v4
